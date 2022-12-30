@@ -1,8 +1,6 @@
 use actix_web::{get, post, web, App, HttpServer, HttpResponse, Responder, Result};
 mod model;
-
-
-const USERS: [model::User; 2] = [model::User {id: 1, name: "Dan"}, model::User {id: 2, name: "David"}];
+mod repository;
 
 #[get("/")]
 async fn index() -> impl Responder {
@@ -11,24 +9,13 @@ async fn index() -> impl Responder {
 
 #[get("/users")]
 async fn users() -> impl Responder {
-    let list_of_users = &USERS.clone();
-    HttpResponse::Ok().body(format!("{:?}", list_of_users))
+    HttpResponse::Ok().body(format!("{:?}", repository::get_users()))
 }
 
 #[get("/users/{id}")]
 async fn get_user_by_id(path: web::Path<i32>) -> Result<impl Responder> {
-    let users = &USERS.clone();
     let id = path.into_inner();
-    let mut found: Option<&model::User> = None;
-    for user in users {
-        if user.id == id {
-            found = Some(user);
-            break;
-        } else {
-            found = None;
-        }
-    }
-    Ok(web::Json(*found.unwrap()))
+    Ok(web::Json(repository::get_user_by_id(id)))
 }
 
 #[post("/echo")]
