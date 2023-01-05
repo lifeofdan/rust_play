@@ -1,3 +1,1 @@
-pub use self::user::User;
-
-mod user;
+pub mod user;
