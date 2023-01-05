@@ -4,8 +4,8 @@ use serde::Deserialize;
 use std::sync::Mutex;
 
 #[derive(Deserialize)]
-pub struct Foo {
-    foo: String,
+pub struct UserDetails {
+    name: String,
 }
 
 #[get("/users")]
@@ -15,10 +15,10 @@ pub async fn index(data: web::Data<Mutex<UserRepo>>) -> Result<impl Responder> {
 
 #[post("/users")]
 pub async fn create_user(
-    req_body: web::Json<Foo>,
+    req_body: web::Json<UserDetails>,
     data: web::Data<Mutex<UserRepo>>,
 ) -> Result<impl Responder> {
-    let name = &req_body.foo;
+    let name = &req_body.name;
     let new_user = data.lock().unwrap().create_user(name);
     Ok(web::Json(new_user))
 }
