@@ -1,33 +1,29 @@
-use crate::repository::UserRepo;
+use crate::{model::user::NewUser, repository::UserRepo};
 use actix_web::{get, post, web, Responder, Result};
-use serde::Deserialize;
 use std::sync::Mutex;
-
-#[derive(Deserialize)]
-pub struct UserDetails {
-    name: String,
-}
 
 #[get("/users")]
 pub async fn index(data: web::Data<Mutex<UserRepo>>) -> Result<impl Responder> {
-    Ok(web::Json(data.lock().unwrap().get_users()))
+    // web::Json(data.lock().unwrap().get_users())
+    let res = web::Json(data.lock().unwrap().get_users().await);
+    Ok(res)
 }
 
 #[post("/users")]
 pub async fn create_user(
-    req_body: web::Json<UserDetails>,
+    req_body: web::Json<NewUser>,
     data: web::Data<Mutex<UserRepo>>,
 ) -> Result<impl Responder> {
-    let name = &req_body.name;
-    let new_user = data.lock().unwrap().create_user(name);
-    Ok(web::Json(new_user))
+    let res = web::Json(data.lock().unwrap().create_user(&req_body).await);
+    Ok(res)
 }
 
 #[get("/users/{id}")]
 pub async fn get_by_id(
-    path: web::Path<i32>,
+    path: web::Path<String>,
     data: web::Data<Mutex<UserRepo>>,
 ) -> Result<impl Responder> {
     let id = path.into_inner();
-    Ok(web::Json(data.lock().unwrap().get_user_by_id(id)))
+    let res = web::Json(data.lock().unwrap().get_user_by_id(id.as_str()).await);
+    Ok(res)
 }

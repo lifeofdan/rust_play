@@ -1,54 +1,102 @@
-use super::DbConnection;
-use crate::model::user::User;
+use crate::model::user::{NewUser, User};
+use reqwest::{header::HeaderMap, Client};
+
+use super::db_connection::DbResponse;
+
 pub struct UserRepo {
-    pub connection: DbConnection,
-    pub users: Vec<User>,
+    pub connection_url: String,
+    pub client: Client,
 }
 
 impl UserRepo {
-    // Fake data
     pub fn new() -> Self {
+        let mut connection_header_map = HeaderMap::new();
+        connection_header_map.insert(reqwest::header::ACCEPT, "application/json".parse().unwrap());
+        connection_header_map.insert("NS", "test".parse().unwrap());
+        connection_header_map.insert("DB", "test".parse().unwrap());
+
+        let c = reqwest::Client::builder()
+            .default_headers(connection_header_map)
+            .build()
+            .unwrap();
+
         UserRepo {
-            connection: DbConnection {
-                connection: "".to_owned(),
-            },
-            users: vec![
-                User {
-                    id: 1,
-                    name: "Dan".to_owned(),
-                },
-                User {
-                    id: 2,
-                    name: "David".to_owned(),
-                },
-            ],
+            connection_url: "http://surrealdb:8000/key/users".to_owned(),
+            client: c,
         }
     }
 
-    pub fn get_users(&self) -> Vec<User> {
-        let users = self.users.clone();
-        return users.to_vec().clone();
-    }
+    pub async fn get_users(&self) -> Vec<User> {
+        let resp = &self
+            .client
+            .get(&self.connection_url)
+            .basic_auth("root", Some("root"))
+            .send()
+            .await
+            .expect("expected a response")
+            .text()
+            .await
+            .expect("expected some text");
 
-    pub fn get_user_by_id(&self, id: i32) -> Option<User> {
-        for user in &self.users.clone() {
-            if user.id == id {
-                return Some(user.clone());
+        let raw: serde_json::Value = serde_json::from_str(&resp).expect("expect raw");
+
+        let mut users: Vec<User> = Vec::new();
+
+        if &raw[0]["status"] == "OK" {
+            let r: DbResponse = serde_json::from_value(raw[0].clone()).expect("to be ok");
+            for user in r.result {
+                users.push(user);
             }
         }
 
+        users
+    }
+
+    pub async fn get_user_by_id(&self, id: &str) -> Option<User> {
+        let db_resp = &self
+            .client
+            .get(&self.connection_url)
+            .json(id)
+            .basic_auth("root", Some("root"))
+            .send()
+            .await
+            .expect("Expected a response")
+            .text()
+            .await
+            .expect("Expected some text");
+
+        let raw: serde_json::Value =
+            serde_json::from_str(&db_resp).expect("Expected raw Database response");
+
+        if &raw[0]["status"] == "OK" {
+            let r: DbResponse = serde_json::from_value(raw[0].clone())
+                .expect("Expected database response with single user");
+            return Some(r.result.first().unwrap().clone());
+        }
         return None;
     }
 
-    pub fn create_user(&mut self, name: &str) -> User {
-        let new_user = User {
-            id: self.users.last().unwrap().id + 1,
-            name: name.to_owned(),
-        };
+    pub async fn create_user(&mut self, new_user: &NewUser) -> Option<User> {
+        let resp = &self
+            .client
+            .post(&self.connection_url)
+            .json(new_user)
+            .basic_auth("root", Some("root"))
+            .send()
+            .await
+            .expect("Expected a result")
+            .text()
+            .await
+            .expect("expected some text");
 
-        self.users.push(new_user);
+        let raw: serde_json::Value = serde_json::from_str(&resp).expect("expect raw");
 
-        let last_user = self.users.last().unwrap().clone();
-        last_user
+        let mut new_user = None;
+        if &raw[0]["status"] == "OK" {
+            let r: DbResponse = serde_json::from_value(raw[0].clone()).expect("Expected a result");
+            new_user = Some(r.result.first().unwrap().clone());
+        }
+
+        new_user
     }
 }
